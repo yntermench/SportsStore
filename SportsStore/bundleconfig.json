@@ -1,0 +1,8 @@
+[
+  {
+    "outputFileName": "wwwroot/bootstrap/dist/css/bootstrap.min.css",
+    "inputFiles": [
+      "wwwroot/bootstrap/dist/css/bootstrap.css"
+    ]
+  }
+]
