@@ -1,4 +1,6 @@
-﻿using Moq;
+﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using Moq;
 using SportsStore.Controllers;
 using SportsStore.Models;
 using SportsStore.Models.ViewModels;
@@ -31,7 +33,7 @@ namespace SportsStore.Tests
             controller.PageSize = 3;
             //Действие
 
-            ProductsListViewModel result = controller.List(2).Model as ProductsListViewModel;
+            ProductsListViewModel result = controller.List(null, 2).Model as ProductsListViewModel;
 
             //Утверждение
             Product[] prodArray = result.Products.ToArray();
@@ -64,7 +66,7 @@ namespace SportsStore.Tests
 
             //Действие
 
-            ProductsListViewModel result = controller.List(2).ViewData.Model as ProductsListViewModel;
+            ProductsListViewModel result = controller.List(null, 2).ViewData.Model as ProductsListViewModel;
 
             //Утверждение
 
@@ -73,6 +75,67 @@ namespace SportsStore.Tests
             Assert.Equal(3, pageInfo.ItemsPerPage);
             Assert.Equal(5, pageInfo.TotalItems);
             Assert.Equal(2, pageInfo.TotalPages);
+        }
+
+        [Fact]
+        public void Can_Filter_Products()
+        {
+            //Организация - создание имитированного хранилища
+            Mock<IProductRepository> mock = new Mock<IProductRepository>();
+            mock.Setup(m => m.Products).Returns((new Product[]
+            {
+                new Product {ProductId = 1, Name = "P1", Category = "Cat1"},
+                new Product {ProductId = 2, Name = "P2", Category = "Cat2"},
+                new Product {ProductId = 3, Name = "P3", Category = "Cat3"},
+                new Product {ProductId = 4, Name = "P4", Category = "Cat4"},
+                new Product {ProductId = 5, Name = "P5", Category = "Cat5"}
+            }).AsQueryable<Product>());
+
+            //Организация - создание контроллера и установка размера страницы
+            //в три элемента
+            ProductController controller = new ProductController(mock.Object);
+            controller.PageSize = 3;
+
+            //Действие
+            Product[] result = (controller.List("Cat2", 1).ViewData.Model as ProductsListViewModel)
+                .Products.ToArray();
+
+            //Утверждение
+            Assert.Equal(2, result.Length);
+            Assert.True(result[0].Name == "P2" && result[0].Category == "Cat2");
+            Assert.True(result[1].Name == "P4" && result[1].Category == "Cat2");
+        }
+
+        [Fact]
+        public void Generate_Category_Specific_Product_Count()
+        {
+            //Организация
+            Mock<IProductRepository> mock = new Mock<IProductRepository>();
+            mock.Setup(m => m.Products).Returns((new Product[] {
+                new Product {ProductId = 1, Name = "P1", Category = "Cat1"},
+                new Product {ProductId = 2, Name = "P2", Category = "Cat2"},
+                new Product {ProductId = 3, Name = "P3", Category = "Cat1"},
+                new Product {ProductId = 4, Name = "P4", Category = "Cat2"},
+                new Product {ProductId = 5, Name = "P5", Category = "Cat3"}
+            }).AsQueryable<Product>());
+
+            ProductController target = new ProductController(mock.Object);
+            target.PageSize = 3;
+
+            Func<ViewResult, ProductsListViewModel> GetModel = result =>
+            result?.ViewData?.Model as ProductsListViewModel;
+
+            //Действие
+            int? res1 = GetModel(target.List("Cat1"))?.Paginglnfo.TotalPages;
+            int? res2 = GetModel(target.List("Cat2"))?.Paginglnfo.TotalPages;
+            int? res3 = GetModel(target.List("Cat3"))?.Paginglnfo.TotalPages;
+            int? resAll = GetModel(target.List(null))?.Paginglnfo.TotalPages;
+
+            //Утверждение
+            Assert.Equal(2, res1);
+            Assert.Equal(2, res2);
+            Assert.Equal(1, res3);
+            Assert.Equal(5, resAll);
         }
     }
 }

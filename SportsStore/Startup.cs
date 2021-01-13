@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SportsStore.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
 
 namespace SportsStore
 {
@@ -23,21 +24,39 @@ namespace SportsStore
         {
             services.AddDbContext<ApplicationDbContext>(options =>
             options.UseSqlServer(Configuration["Data:SportsStoreProducts:ConnectionString"]));
+            services.AddDbContext<AppIdentityDbContext>(options =>
+            options.UseSqlServer(
+                Configuration["Data:SportsStoreIdentity:ConnectionString"]));
+            services.AddIdentity<IdentityUser, IdentityRole>()
+                .AddEntityFrameworkStores<AppIdentityDbContext>()
+                .AddDefaultTokenProviders();
             services.AddTransient<IProductRepository, EFProductRepository>();
+            services.AddTransient<IOrderRepository, EFOrderRepository>();
+            services.AddScoped<Cart>(sp => SessionCart.GetCart(sp));
+            services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
+            services.AddMemoryCache();
+            services.AddSession();
             services.AddControllersWithViews();
         }
 
-        // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
+                app.UseStatusCodePages();
+            }
+            else
+            {
+                app.UseExceptionHandler("/Error");
             }
 
+            app.UseSession();
+            app.UseAuthentication();
             app.UseHttpsRedirection();
-            app.UseStatusCodePages();
+  
             app.UseStaticFiles();
+
 
             app.UseRouting();
 
@@ -45,19 +64,36 @@ namespace SportsStore
 
             app.UseEndpoints(endpoints =>
             {
-  
-                endpoints.MapControllerRoute(
-                    name: "pagination",
-                    pattern: "Products/Page{productPage}/{id?}",
-                    defaults: new { controller = "Product", action = "List" });
+                endpoints.MapControllerRoute(null, "{category}/Page{productPage:int}",
+                    new { controller = "Product", action = "List" });
+
+                endpoints.MapControllerRoute(null, "Page{productPage:int}", new
+                {
+                    controller = "Product",
+                    action = "List",
+                    productPage = 1
+                });
+
+                endpoints.MapControllerRoute(null, "{category}", new
+                {
+                    controller = "Product",
+                    action = "List",
+                    productPage = 1
+                });
 
 
-                endpoints.MapControllerRoute(
-                    name: "default",
-                    pattern: "{controller=Product}/{action=List}/{id?}");
+                endpoints.MapControllerRoute(null, "", new
+                {
+                    controller = "Product",
+                    action = "List",
+                    productPage = 1
+                });
+
+                endpoints.MapControllerRoute(null, "{controller}/{action}/{id?}");
             });
 
-            SeedData.EnsurePopulated(app);
+            //SeedData.EnsurePopulated(app);
+            //IdentitySeedData.EnsurePopulated(app);
         }
     }
 }
